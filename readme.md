@@ -74,17 +74,22 @@ const fpPromise = FingerprintJS.load();
 })()
 ```
 
-### CDN
+See the [identification signals guide](docs/api.md#identification-signals) for what each
+signal means, its value ranges, and the recommended [decision flow](docs/api.md#combining-the-signals-a-decision-flow).
+
+### Self-hosted script
+
+The package `dist` folder contains ready-to-use bundles (`fp.min.js` for a `<script>` tag,
+`fp.umd.min.js` for UMD, `fp.esm.js` for ES modules). Copy a file to your website
+(a neutral file name reduces the chance of content blocker URL rules) and include it directly:
 
 ```html
+<script src="/v.js"></script>
 <script>
   // Initialize the agent at application startup.
-  // If you're using an ad blocker or Brave/Firefox, this import will not work.
-  // Please use the npm package instead: https://t.ly/ORyXk
-  const fpPromise = import('https://openfpcdn.io/fingerprintjs/v5')
-    .then(FingerprintJS => FingerprintJS.load());
+  const fpPromise = FingerprintJS.load()
 
-  (async () => {
+  ;(async () => {
     // Get the visitor identifier when you need it.
     const fp = await fpPromise
     const result = await fp.get()
@@ -93,7 +98,7 @@ const fpPromise = FingerprintJS.load();
 </script>
 ```
 
-[Run this code](https://stackblitz.com/edit/fpjs-5-cdn?file=index.html&devtoolsheight=100)
+The library sends no network requests; everything is computed in the browser.
 
 ### Resources
 
