@@ -6,9 +6,7 @@ describe('Sources', () => {
     it('returns expected value type depending on the browser', async () => {
       const result = getAudioFingerprint()
 
-      if (doesBrowserPerformAntifingerprinting()) {
-        expect(result).toBe(SpecialFingerprint.KnownForAntifingerprinting)
-      } else if (doesBrowserSuspendAudioContext()) {
+      if (doesBrowserSuspendAudioContext()) {
         expect(result).toBe(SpecialFingerprint.KnownForSuspending)
       } else {
         // A type guard
@@ -16,9 +14,15 @@ describe('Sources', () => {
           throw new Error('Expected to be a function')
         }
         const fingerprint = await result()
-        expect(fingerprint).toBeGreaterThanOrEqual(0)
-        const newFingerprint = await result()
-        expect(newFingerprint).toBe(newFingerprint)
+
+        if (isSamsungInternet() && (getBrowserMajorVersion() ?? 0) >= 26) {
+          // Samsung Internet 26+ applies audio anti-fingerprinting measures. If the noise is per-render,
+          // it's detected at runtime and the special value is returned; if the noise is session-consistent,
+          // the fingerprint is stable within the session (and excluded from the visitor identifier by the agent).
+          expect(fingerprint === SpecialFingerprint.KnownForAntifingerprinting || fingerprint >= 0).toBeTrue()
+        } else {
+          expect(fingerprint).toBeGreaterThanOrEqual(0)
+        }
       }
     })
 
@@ -38,12 +42,6 @@ describe('Sources', () => {
     })
   })
 })
-
-function doesBrowserPerformAntifingerprinting() {
-  const isSafari17orNewer = isSafari() && (getBrowserMajorVersion() ?? 0) >= 17
-  const isSamsungInternet26orNewer = isSamsungInternet() && (getBrowserMajorVersion() ?? 0) >= 26
-  return isSafari17orNewer || isSamsungInternet26orNewer
-}
 
 function doesBrowserSuspendAudioContext() {
   // WebKit has stopped telling its real version in the user-agent string since version 605.1.15,

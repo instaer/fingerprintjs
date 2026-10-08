@@ -19,6 +19,8 @@ describe('Integration', () => {
     const result = await fp.get()
     expect(result).toBeInstanceOf(Object)
     expect(typeof result.visitorId).toBe('string')
+    expect(typeof result.stableVisitorId).toBe('string')
+    expect(typeof result.integrity.score).toBe('number')
     expect(result.confidence.score).toBeGreaterThan(0.1)
     expect(result.confidence.score).toBeLessThan(0.9)
     expect(result.components).toBeInstanceOf(Object)
