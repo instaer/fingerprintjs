@@ -1,5 +1,5 @@
 {
-  "name": "@fingerprintjs/fingerprintjs",
+  "name": "@instaer/fingerprintjs",
   "description": "Browser fingerprinting library with the highest accuracy and stability",
   "version": "6.0.0",
   "keywords": [
@@ -14,16 +14,19 @@
     "device fingerprint",
     "privacy"
   ],
-  "author": "FingerprintJS, Inc (https://fingerprint.com)",
+  "author": "instaer (https://github.com/instaer), based on FingerprintJS (https://github.com/fingerprintjs/fingerprintjs)",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/fingerprintjs/fingerprintjs.git"
+    "url": "https://github.com/instaer/fingerprintjs.git"
   },
   "bugs": {
-    "url": "https://github.com/fingerprintjs/fingerprintjs/issues"
+    "url": "https://github.com/instaer/fingerprintjs/issues"
   },
-  "homepage": "https://github.com/fingerprintjs/fingerprintjs",
+  "homepage": "https://github.com/instaer/fingerprintjs#readme",
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
   "main": "dist/fp.cjs.js",
   "module": "dist/fp.esm.js",
   "types": "dist/fp.d.ts",

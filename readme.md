@@ -8,20 +8,22 @@
   </a>
 </p>
 <p align="center">
-  <a href="https://github.com/fingerprintjs/fingerprintjs/actions/workflows/test.yml"><img src="https://github.com/fingerprintjs/fingerprintjs/actions/workflows/test.yml/badge.svg" alt="Build status"></a>
-  <a href="https://www.npmjs.com/package/@fingerprintjs/fingerprintjs"><img src="https://img.shields.io/npm/v/@fingerprintjs/fingerprintjs.svg" alt="Current NPM version"></a>
-  <a href="https://www.npmjs.com/package/@fingerprintjs/fingerprintjs"><img src="https://img.shields.io/npm/dm/@fingerprintjs/fingerprintjs.svg" alt="Monthly downloads from NPM"></a>
-  <a href="https://www.jsdelivr.com/package/npm/@fingerprintjs/fingerprintjs"><img src="https://img.shields.io/jsdelivr/npm/hm/@fingerprintjs/fingerprintjs.svg" alt="Monthly downloads from jsDelivr"></a>
-</p>
-<p align="center">
-  <a href="https://discord.gg/39EpE2neBg">
-    <img src="https://img.shields.io/discord/852099967190433792?style=for-the-badge&label=Discord&logo=Discord&logoColor=white&color=5865F2" alt="Discord server">
-  </a>
+  <a href="https://github.com/instaer/fingerprintjs/actions/workflows/test.yml"><img src="https://github.com/instaer/fingerprintjs/actions/workflows/test.yml/badge.svg" alt="Build status"></a>
 </p>
 
-FingerprintJS is an open-source, client-side, browser fingerprinting library that queries browser attributes and computes a hashed visitor identifier from them. Unlike cookies and local storage, a fingerprint stays the same in incognito/private mode and even when browser data is purged.
+This is an optimized fork of [FingerprintJS](https://github.com/fingerprintjs/fingerprintjs) — an open-source, client-side, browser fingerprinting library that queries browser attributes and computes a hashed visitor identifier from them. Unlike cookies and local storage, a fingerprint stays the same in incognito/private mode and even when browser data is purged.
 
-FingerprintJS is available under the [MIT license](docs/licensing.md).
+What's new in this fork (v6):
+
+- **No install-statistics request**: the library doesn't send any network request on load
+- **Runtime noise detection** in canvas and audio sources instead of skipping them by browser version, preserving full entropy where possible
+- **Anti-fingerprinting resilience**: detects Brave and excludes its per-session randomized sources, so the visitor identifier stays stable across sessions
+- **Layered identification**: `visitorId` (full entropy), `stableVisitorId` (low-variance components for server-side clustering), `excludedComponents` (what was excluded)
+- **Integrity detection (lies detection)**: cross-source consistency checks reveal spoofed user agents, GPUs and hardware values
+- **Dynamic confidence scoring**: platform prior × entropy coverage × integrity score
+- **Performance**: the font detection list is trimmed per platform, reducing forced reflows
+
+Available under the [MIT license](docs/licensing.md).
 
 ## Demo
 
@@ -31,14 +33,26 @@ Now, try visiting the same page in private/incognito mode and notice that the vi
 
 ## Installation
 
-### npm
+### npm (GitHub Packages)
+
+The package is published to GitHub Packages as a private package.
+
+Add to `.npmrc` in your project (create the file if missing):
+
+```ini
+@instaer:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
+```
+
+Create a PAT with the `read:packages` scope and export it as `GITHUB_TOKEN`.
+In CI, the built-in `GITHUB_TOKEN` works out of the box.
 
 ```bash
-npm install @fingerprintjs/fingerprintjs
+npm install @instaer/fingerprintjs
 ```
 
 ```jsx
-import FingerprintJS from '@fingerprintjs/fingerprintjs'
+import FingerprintJS from '@instaer/fingerprintjs'
 
 // Initialize the agent at application startup.
 const fpPromise = FingerprintJS.load();
@@ -47,7 +61,10 @@ const fpPromise = FingerprintJS.load();
   // Get the visitor identifier when you need it.
   const fp = await fpPromise
   const result = await fp.get()
-  console.log(result.visitorId)
+  console.log(result.visitorId)        // full-entropy identifier
+  console.log(result.stableVisitorId)  // low-variance identifier for clustering
+  console.log(result.integrity)        // { score, lies } — anti-spoofing signals
+  console.log(result.confidence)       // dynamic confidence score
 })()
 ```
 
