@@ -17,10 +17,18 @@ async function startPlayground() {
   const startTime = Date.now()
 
   try {
-    const { visitorId, confidence, components } = await getVisitorData()
+    const { visitorId, stableVisitorId, confidence, integrity, excludedComponents, components } =
+      await getVisitorData()
     const totalTime = Date.now() - startTime
     output.innerHTML = ''
     addOutputSection({ output, header: 'Visitor identifier:', content: visitorId, size: 'giant' })
+    addOutputSection({
+      output,
+      header: 'Stable visitor identifier:',
+      content: stableVisitorId,
+      comment: 'Low-variance components only. Use it for server-side clustering.',
+      size: 'big',
+    })
     addOutputSection({ output, header: 'Time took to get the identifier:', content: `${totalTime}ms`, size: 'big' })
     addOutputSection({
       output,
@@ -34,6 +42,23 @@ async function startPlayground() {
       },
       size: 'big',
     })
+    addOutputSection({
+      output,
+      header: 'Integrity score:',
+      content: String(integrity.score),
+      comment: integrity.lies.length
+        ? { html: `Detected lies: ${integrity.lies.join(', ')}` }
+        : 'No lies detected. All cross-source checks are consistent.',
+      size: 'big',
+    })
+    if (excludedComponents.length) {
+      addOutputSection({
+        output,
+        header: 'Excluded components:',
+        content: excludedComponents.join(', '),
+        comment: 'These components are randomized by anti-fingerprinting and excluded from the identifiers.',
+      })
+    }
     addOutputSection({ output, header: 'User agent:', content: navigator.userAgent })
     addOutputSection({
       output,
@@ -42,8 +67,11 @@ async function startPlayground() {
     })
 
     initializeDebugButtons(`Visitor identifier: \`${visitorId}\`
+Stable visitor identifier: \`${stableVisitorId}\`
 Time took to get the identifier: ${totalTime}ms
 Confidence: ${JSON.stringify(confidence)}
+Integrity: ${JSON.stringify(integrity)}
+Excluded components: ${excludedComponents.join(', ') || 'none'}
 User agent: \`${navigator.userAgent}\`
 Entropy components:
 \`\`\`

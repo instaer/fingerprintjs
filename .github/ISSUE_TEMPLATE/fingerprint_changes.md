@@ -16,5 +16,5 @@ BUG REPORTS NOT USING THE TEMPLATE ARE SUBJECT TO BEING CLOSED WITHOUT COMMENT.
 
 ### Fingerprint data
 
-Provide the FULL DATA of both/all fingerprints using this page: https://fingerprintjs.github.io/fingerprintjs/.
+Provide the FULL DATA of both/all fingerprints using this page: https://instaer.github.io/fingerprintjs/.
 Alternatively, provide a JSFiddle that reproduces the bug.

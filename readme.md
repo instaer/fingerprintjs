@@ -27,9 +27,15 @@ Available under the [MIT license](docs/licensing.md).
 
 ## Demo
 
-Visit [https://fingerprintjs.github.io/fingerprintjs](https://fingerprintjs.github.io/fingerprintjs) to see your visitor identifier.
+Visit [https://instaer.github.io/fingerprintjs/](https://instaer.github.io/fingerprintjs/) to see your visitor identifier,
+stable visitor identifier, confidence and integrity scores.
 
 Now, try visiting the same page in private/incognito mode and notice that the visitor identifier remains the **same**!
+
+Note: the identifiers produced by this fork differ from the ones produced by the original
+FingerprintJS demo at https://fingerprintjs.github.io/fingerprintjs/ — the font list, canvas and
+audio collection logic have changed (see "What's new" above), and visitor identifiers are not
+stable across library versions in general.
 
 ## Installation
 
