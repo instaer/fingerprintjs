@@ -17,8 +17,7 @@ async function startPlayground() {
   const startTime = Date.now()
 
   try {
-    const { visitorId, stableVisitorId, confidence, integrity, excludedComponents, components } =
-      await getVisitorData()
+    const { visitorId, stableVisitorId, confidence, integrity, excludedComponents, components } = await getVisitorData()
     const totalTime = Date.now() - startTime
     output.innerHTML = ''
     addOutputSection({ output, header: 'Visitor identifier:', content: visitorId, size: 'giant' })

@@ -102,7 +102,7 @@ function makeComponents(overrides: Record<string, unknown>): BuiltinComponents {
     math: { value: { sin: 'x', cos: 'y' }, duration: 0 },
     audioBaseLatency: { value: 0.005, duration: 0 },
     timezone: { value: 'Europe/London', duration: 0 },
-    languages: { value: ['en-US'], duration: 0 },
+    languages: { value: [['en-US']], duration: 0 },
     touchSupport: { value: { maxTouchPoints: 0 }, duration: 0 },
     dateTimeLocale: { value: 'en-US', duration: 0 },
     ...overrides,

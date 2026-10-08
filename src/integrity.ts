@@ -149,7 +149,7 @@ export default function getIntegrity(components: BuiltinComponents): Integrity {
     },
     {
       weight: 0.1,
-      result: checkDeviceMemory(rawComponents),
+      result: checkDeviceMemory(rawComponents, userAgentOsFamily),
     },
     {
       weight: 0.1,
@@ -253,15 +253,32 @@ function checkHardwareConcurrency(components: UnknownComponents): CheckResult {
   return null
 }
 
-function checkDeviceMemory(components: UnknownComponents): CheckResult {
+function checkDeviceMemory(components: UnknownComponents, userAgentOsFamily: OsFamily | undefined): CheckResult {
   const deviceMemory = getComponentValue(components, 'deviceMemory')
   if (typeof deviceMemory !== 'number') {
     return undefined
   }
-  // Browsers round and cap the value, see https://developer.mozilla.org/en-US/docs/Web/API/Navigator/deviceMemory
-  const plausibleValues = [0.25, 0.5, 1, 2, 4, 8]
-  if (!plausibleValues.includes(deviceMemory)) {
-    return `implausibleValue: navigator.deviceMemory is ${deviceMemory}, expected one of ${plausibleValues.join(', ')}`
+  // The Device Memory API never returns the exact RAM size: the browser rounds the value down
+  // to the nearest power of 2 and clamps it, see https://developer.mozilla.org/en-US/docs/Web/API/Navigator/deviceMemory
+  // and the `quantizedDeviceMemory` function of the Device Memory API spec.
+  // Chromium 151 raises the desktop clamp ceiling from 8 to 32 GB, so 16 and 32 are what most
+  // modern desktops report; a future raise won't break this check, because it validates
+  // the quantization (powers of 2), not a fixed list of values.
+  // A non-quantized value (e.g. 3, 12 or 24) can't be produced by a real browser, so it's a sign
+  // of a naive spoofing tool that sets the raw hardware size instead of the quantized value.
+  const isQuantized = deviceMemory >= 0.25 && deviceMemory <= 128 && Number.isInteger(Math.log2(deviceMemory))
+  if (!isQuantized) {
+    return (
+      `implausibleValue: navigator.deviceMemory is ${deviceMemory}, ` +
+      'expected a quantized value (a power of 2 between 0.25 and 128)'
+    )
+  }
+  // Android keeps the value clamped to 8 GB, see approximated_device_memory.cc in Chromium.
+  // A bigger value with an Android user agent is a sign of a desktop machine behind an
+  // Android user agent override (e.g. DevTools device emulation or a spoofer that forgot
+  // to override the memory size).
+  if (userAgentOsFamily === OsFamily.Android && deviceMemory > 8) {
+    return `implausibleValue: navigator.deviceMemory is ${deviceMemory}, but Android caps it at 8`
   }
   return null
 }
@@ -271,7 +288,19 @@ function checkLanguages(components: UnknownComponents): CheckResult {
   if (!Array.isArray(languages)) {
     return undefined
   }
-  if (languages.length === 0 || languages.some((language) => typeof language !== 'string' || !language)) {
+  // The languages source returns an array of arrays of language tags, e.g. `[['en-US'], ['en-US', 'en']]`
+  // on Firefox and Safari, and a single tag group like `[['en-US']]` on Chromium 86+, where
+  // `navigator.languages` is ignored in favor of `navigator.language` for incognito mode stability.
+  // See src/sources/languages.ts for the exact shape.
+  const isValid =
+    languages.length > 0 &&
+    languages.every(
+      (tagGroup) =>
+        Array.isArray(tagGroup) &&
+        tagGroup.length > 0 &&
+        tagGroup.every((tag) => typeof tag === 'string' && tag.length > 0),
+    )
+  if (!isValid) {
     return `implausibleValue: navigator.languages is ${JSON.stringify(languages)}`
   }
   return null
