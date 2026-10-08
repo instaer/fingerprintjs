@@ -3,8 +3,10 @@ import { requestIdleCallbackIfAvailable } from './utils/async'
 import { UnknownComponents } from './utils/entropy_source'
 import { x64hash128 } from './utils/hashing'
 import { errorToObject } from './utils/misc'
+import { getCrossSessionRandomizedSources } from './utils/antifingerprinting'
 import loadBuiltinSources, { BuiltinComponents } from './sources'
 import getConfidence, { Confidence } from './confidence'
+import getIntegrity, { Integrity } from './integrity'
 
 /**
  * Options for Fingerprint class loading
@@ -21,11 +23,6 @@ export interface LoadOptions {
    * Required to ease investigations of problems.
    */
   debug?: boolean
-  /**
-   * Set `false` to disable the unpersonalized AJAX request that the agent sends to collect installation statistics.
-   * It's always disabled in the version published to the FingerprintJS CDN.
-   */
-  monitoring?: boolean
 }
 
 /**
@@ -41,17 +38,69 @@ export interface GetOptions {
 }
 
 /**
+ * The components that rarely change. They are used to build `stableVisitorId`.
+ *
+ * Volatile components (canvas, audio, fonts, WebGL, storage availability, user media preferences, etc.) are excluded:
+ * they can change due to browser updates, GPU driver updates, user settings or anti-fingerprinting noise.
+ */
+export const stableComponentKeys: readonly string[] = [
+  'userAgentData',
+  'languages',
+  'timezone',
+  'colorDepth',
+  'screenResolution',
+  'hardwareConcurrency',
+  'deviceMemory',
+  'osCpu',
+  'cpuClass',
+  'platform',
+  'vendor',
+  'vendorFlavors',
+  'touchSupport',
+  'colorGamut',
+  'monochrome',
+  'hdr',
+  'math',
+  'architecture',
+  'applePay',
+  'privateClickMeasurement',
+  'audioBaseLatency',
+  'dateTimeLocale',
+  'pdfViewerEnabled',
+]
+
+/**
  * Result of getting a visitor identifier
  */
 export interface GetResult {
   /**
-   * The visitor identifier
+   * The visitor identifier. Built from all collected components except the ones excluded
+   * for the current environment (see `excludedComponents`).
    */
   visitorId: string
+  /**
+   * A visitor identifier built only from the components that rarely change (see `stableComponentKeys`).
+   *
+   * It stays the same when volatile components (canvas, audio, fonts, WebGL, etc.) change, e.g. when the browser
+   * updates, the GPU driver updates or an anti-fingerprinting feature starts randomizing an entropy source.
+   * When the main `visitorId` changes but `stableVisitorId` remains the same, the visitor most likely is the same.
+   * Use it on the server side as a clustering key to match identifiers that changed.
+   */
+  stableVisitorId: string
   /**
    * A confidence score that tells how much the agent is sure about the visitor identifier
    */
   confidence: Confidence
+  /**
+   * Result of the cross-component consistency checks (tampering detection)
+   */
+  integrity: Integrity
+  /**
+   * The source keys that are excluded from the `visitorId` and `stableVisitorId` hashes, because the current
+   * environment is known to randomize them across sessions (e.g. Brave farbling). The raw values of the excluded
+   * sources are still collected and available in `components` for server-side analysis.
+   */
+  excludedComponents: readonly string[]
   /**
    * List of components that has formed the visitor identifier.
    *
@@ -105,28 +154,64 @@ export function hashComponents(components: UnknownComponents): string {
   return x64hash128(componentsToCanonicalString(components))
 }
 
+function pickComponents(components: UnknownComponents, keys: readonly string[]): UnknownComponents {
+  const result: UnknownComponents = {}
+  for (const key of keys) {
+    if (key in components) {
+      result[key] = components[key]
+    }
+  }
+  return result
+}
+
+function omitComponents(components: UnknownComponents, keys: readonly string[]): UnknownComponents {
+  const result: UnknownComponents = {}
+  const excluded = new Set(keys)
+  for (const key of Object.keys(components)) {
+    if (!excluded.has(key)) {
+      result[key] = components[key]
+    }
+  }
+  return result
+}
+
 /**
- * Makes a GetResult implementation that calculates the visitor id hash on demand.
+ * Makes a GetResult implementation that calculates the visitor id hashes on demand.
  * Designed for optimisation.
  */
-function makeLazyGetResult(components: BuiltinComponents): GetResult {
+function makeLazyGetResult(components: BuiltinComponents, excludedComponents: readonly string[]): GetResult {
+  const hashedComponents = omitComponents(components, excludedComponents)
+  const stableComponents = omitComponents(pickComponents(components, stableComponentKeys), excludedComponents)
   let visitorIdCache: string | undefined
+  let stableVisitorIdCache: string | undefined
 
-  // This function runs very fast, so there is no need to make it lazy
-  const confidence = getConfidence(components)
+  // These functions run very fast, so there is no need to make them lazy
+  const integrity = getIntegrity(components)
+  const confidence = getConfidence(components, excludedComponents, integrity)
 
   // A plain class isn't used because its getters and setters aren't enumerable.
   return {
     get visitorId(): string {
       if (visitorIdCache === undefined) {
-        visitorIdCache = hashComponents(this.components)
+        visitorIdCache = hashComponents(hashedComponents)
       }
       return visitorIdCache
     },
     set visitorId(visitorId: string) {
       visitorIdCache = visitorId
     },
+    get stableVisitorId(): string {
+      if (stableVisitorIdCache === undefined) {
+        stableVisitorIdCache = hashComponents(stableComponents)
+      }
+      return stableVisitorIdCache
+    },
+    set stableVisitorId(stableVisitorId: string) {
+      stableVisitorIdCache = stableVisitorId
+    },
     confidence,
+    integrity,
+    excludedComponents,
     components,
     version,
   }
@@ -150,14 +235,18 @@ export function prepareForSources(delayFallback = 50): Promise<void> {
  * A factory function is used instead of a class to shorten the attribute names in the minified code.
  * Native private class fields could've been used, but TypeScript doesn't allow them with `"target": "es5"`.
  */
-function makeAgent(getComponents: () => Promise<BuiltinComponents>, debug?: boolean): Agent {
+function makeAgent(
+  getComponents: () => Promise<BuiltinComponents>,
+  excludedComponents: readonly string[],
+  debug?: boolean,
+): Agent {
   const creationTime = Date.now()
 
   return {
     async get(options) {
       const startTime = Date.now()
       const components = await getComponents()
-      const result = makeLazyGetResult(components)
+      const result = makeLazyGetResult(components, excludedComponents)
 
       if (debug || options?.debug) {
         // console.log is ok here because it's under a debug clause
@@ -169,6 +258,10 @@ version: ${result.version}
 userAgent: ${navigator.userAgent}
 timeBetweenLoadAndGet: ${startTime - creationTime}
 visitorId: ${result.visitorId}
+stableVisitorId: ${result.stableVisitorId}
+confidence: ${result.confidence.score}
+integrity: ${result.integrity.score} (${result.integrity.lies.length} lies)
+excludedComponents: ${result.excludedComponents.join(', ') || 'none'}
 components: ${componentsToDebugString(components)}
 \`\`\``)
       }
@@ -179,33 +272,12 @@ components: ${componentsToDebugString(components)}
 }
 
 /**
- * Sends an unpersonalized AJAX request to collect installation statistics
- */
-function monitor() {
-  // The FingerprintJS CDN (https://github.com/fingerprintjs/cdn) replaces `window.__fpjs_d_m` with `true`
-  if (window.__fpjs_d_m || Math.random() >= 0.001) {
-    return
-  }
-  try {
-    const request = new XMLHttpRequest()
-    request.open('get', `https://m1.openfpcdn.io/fingerprintjs/v${version}/npm-monitoring`, true)
-    request.send()
-  } catch (error) {
-    // console.error is ok here because it's an unexpected error handler
-    // eslint-disable-next-line no-console
-    console.error(error)
-  }
-}
-
-/**
  * Builds an instance of Agent and waits a delay required for a proper operation.
  */
 export async function load(options: Readonly<LoadOptions> = {}): Promise<Agent> {
-  const { delayFallback, debug, monitoring = true } = options
-  if (monitoring) {
-    monitor()
-  }
+  const { delayFallback, debug } = options
   await prepareForSources(delayFallback)
   const getComponents = loadBuiltinSources({ cache: {}, debug })
-  return makeAgent(getComponents, debug)
+  const excludedComponents = getCrossSessionRandomizedSources()
+  return makeAgent(getComponents, excludedComponents, debug)
 }

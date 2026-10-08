@@ -1,4 +1,4 @@
-import { getBrowserMajorVersion, isGecko, isSafari, isSamsungInternet } from '../../tests/utils'
+import { isSamsungInternet, getBrowserMajorVersion } from '../../tests/utils'
 import getCanvasFingerprint, { ImageStatus } from './canvas'
 
 describe('Sources', () => {
@@ -8,10 +8,7 @@ describe('Sources', () => {
 
       expect(winding).toBeTrue()
 
-      if (shouldSkip()) {
-        expect(text).toBe(ImageStatus.Skipped)
-        expect(geometry).toBe(ImageStatus.Skipped)
-      } else if (shouldBeUnstable()) {
+      if (shouldBeUnstable()) {
         expect(text).toBe(ImageStatus.Unstable)
         expect(geometry).toBe(ImageStatus.Unstable)
       } else {
@@ -31,14 +28,13 @@ describe('Sources', () => {
   })
 })
 
-function shouldSkip() {
-  const browserVersion = getBrowserMajorVersion() ?? 0
-  const isSafari17OrNewer = isSafari() && browserVersion >= 17
-  const isFirefox120OrNewer = isGecko() && browserVersion >= 120
-
-  return isSafari17OrNewer || isFirefox120OrNewer
-}
-
+/**
+ * Some browsers add per-render noise to the canvas image; the noise is detected at runtime by rendering
+ * the images twice and comparing the results, so such browsers get the images marked as unstable.
+ * A known case is Samsung Internet < 28: https://github.com/fingerprintjs/fingerprintjs/issues/791
+ * Browsers without the noise (including the regular mode of Safari 17+ and Firefox 120+) keep the full
+ * canvas entropy in the fingerprint.
+ */
 function shouldBeUnstable() {
   return isSamsungInternet() && (getBrowserMajorVersion() ?? 0) < 28
 }

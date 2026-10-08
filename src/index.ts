@@ -1,6 +1,16 @@
-import { load, Agent, LoadOptions, GetOptions, GetResult, hashComponents, componentsToDebugString } from './agent'
+import {
+  load,
+  Agent,
+  LoadOptions,
+  GetOptions,
+  GetResult,
+  stableComponentKeys,
+  hashComponents,
+  componentsToDebugString,
+} from './agent'
 import { BuiltinComponents } from './sources'
 import { Confidence } from './confidence'
+import { Integrity } from './integrity'
 import { Component, UnknownComponents } from './utils/entropy_source'
 import { x64hash128 } from './utils/hashing'
 
@@ -11,17 +21,18 @@ export {
   LoadOptions,
   GetOptions,
   GetResult,
+  stableComponentKeys,
   hashComponents,
   componentsToDebugString,
   Component,
   UnknownComponents,
   BuiltinComponents,
   Confidence,
+  Integrity,
 }
 // The default export is a syntax sugar (`import * as FP from '...' → import FP from '...'`).
 // It should contain all the public exported values.
 export default { load, hashComponents, componentsToDebugString }
-
 // The exports below are for private usage. They may change unexpectedly. Use them at your own risk.
 /** Not documented, out of Semantic Versioning, usage is at your own risk */
 export const murmurX64Hash128 = x64hash128
@@ -33,6 +44,7 @@ export { getUnstableHardwareConcurrency } from './sources/hardware_concurrency'
 export { getUnstableScreenFrame } from './sources/screen_frame'
 export { getUnstableScreenResolution } from './sources/screen_resolution'
 export { getWebGLContext } from './sources/webgl'
+export { default as getIntegrity } from './integrity'
 export {
   getFullscreenElement,
   isAndroid,
@@ -44,6 +56,7 @@ export {
   isDesktopWebKit,
   isSamsungInternet,
 } from './utils/browser'
+export { isBrave, getCrossSessionRandomizedSources } from './utils/antifingerprinting'
 export {
   loadSources,
   Source,

@@ -21,14 +21,15 @@ const enum InnerErrorName {
  * A deep description: https://fingerprint.com/blog/audio-fingerprinting/
  * Inspired by and based on https://github.com/cozylife/audio-fingerprint
  *
- * A version of the entropy source with stabilization to make it suitable for static fingerprinting.
- * Audio signal is noised in private mode of Safari 17, so audio fingerprinting is skipped in Safari 17.
+ * Gets the audio fingerprint. The anti-fingerprinting modes that add per-render noise to the audio signal
+ * (e.g. the private mode of Safari 17+) are detected at runtime by rendering the fingerprint twice on
+ * independent audio contexts and comparing the results; such browsers get the special
+ * `KnownForAntifingerprinting` value. Deterministic browsers keep the full audio entropy in the fingerprint.
+ *
+ * Session-consistent noise (e.g. Brave farbling) can't be detected this way; it's handled by the
+ * `getCrossSessionRandomizedSources` exclusion in the agent.
  */
 export default function getAudioFingerprint(): number | (() => Promise<number>) {
-  if (doesBrowserPerformAntifingerprinting()) {
-    return SpecialFingerprint.KnownForAntifingerprinting
-  }
-
   return getUnstableAudioFingerprint()
 }
 
@@ -40,8 +41,8 @@ export default function getAudioFingerprint(): number | (() => Promise<number>) 
  */
 export function getUnstableAudioFingerprint(): number | (() => Promise<number>) {
   const w = window
-  const AudioContext = w.OfflineAudioContext || w.webkitOfflineAudioContext
-  if (!AudioContext) {
+  const AudioContextConstructor = w.OfflineAudioContext || w.webkitOfflineAudioContext
+  if (!AudioContextConstructor) {
     return SpecialFingerprint.NotSupported
   }
 
@@ -53,9 +54,46 @@ export function getUnstableAudioFingerprint(): number | (() => Promise<number>) 
     return SpecialFingerprint.KnownForSuspending
   }
 
+  // The fingerprint is rendered twice on independent audio contexts to detect per-render noise, which some browsers
+  // add in their anti-fingerprinting modes. See the comment on `getAudioFingerprint`.
+  const first = startFingerprint(AudioContextConstructor)
+  const second = startFingerprint(AudioContextConstructor)
+
+  return () => {
+    first.finishRendering()
+    second.finishRendering()
+    return Promise.all([first.fingerprintPromise, second.fingerprintPromise]).then(
+      ([firstFingerprint, secondFingerprint]) => {
+        if (typeof firstFingerprint !== 'number') {
+          return firstFingerprint
+        }
+        if (typeof secondFingerprint !== 'number') {
+          return secondFingerprint
+        }
+        const maxAbsolute = Math.max(Math.abs(firstFingerprint), Math.abs(secondFingerprint), 1)
+        if (Math.abs(firstFingerprint - secondFingerprint) > NOISE_RELATIVE_TOLERANCE * maxAbsolute) {
+          return SpecialFingerprint.KnownForAntifingerprinting
+        }
+        return firstFingerprint
+      },
+    )
+  }
+}
+
+/**
+ * The maximum relative difference between the two rendered fingerprints that is still considered as no noise.
+ * Deterministic engines produce exactly equal values; anti-fingerprinting noise makes them much more different.
+ */
+const NOISE_RELATIVE_TOLERANCE = 1e-6
+
+/**
+ * Starts rendering an audio fingerprint.
+ * When the returned `finishRendering` function is called, the render process starts finishing.
+ */
+function startFingerprint(AudioContextConstructor: typeof OfflineAudioContext) {
   const hashFromIndex = 4500
   const hashToIndex = 5000
-  const context = new AudioContext(1, hashToIndex, 44100)
+  const context = new AudioContextConstructor(1, hashToIndex, 44100)
 
   const oscillator = context.createOscillator()
   oscillator.type = 'triangle'
@@ -85,11 +123,7 @@ export function getUnstableAudioFingerprint(): number | (() => Promise<number>) 
       },
     ),
   )
-
-  return () => {
-    finishRendering()
-    return fingerprintPromise
-  }
+  return { fingerprintPromise, finishRendering }
 }
 
 /**
@@ -98,18 +132,6 @@ export function getUnstableAudioFingerprint(): number | (() => Promise<number>) 
 function doesBrowserSuspendAudioContext() {
   // Mobile Safari 11 and older
   return browser.isWebKit() && !browser.isDesktopWebKit() && !browser.isWebKit606OrNewer()
-}
-
-/**
- * Checks if the current browser is known for applying anti-fingerprinting measures in all or some critical modes
- */
-function doesBrowserPerformAntifingerprinting() {
-  return (
-    // Safari ≥17
-    (browser.isWebKit() && browser.isWebKit616OrNewer() && browser.isSafariWebKit()) ||
-    // Samsung Internet ≥26
-    (browser.isChromium() && browser.isSamsungInternet() && browser.isChromium122OrNewer())
-  )
 }
 
 /**

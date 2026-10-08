@@ -1,5 +1,3 @@
-import { isGecko, isGecko120OrNewer, isSafariWebKit, isWebKit, isWebKit616OrNewer } from '../utils/browser'
-
 export interface CanvasFingerprint {
   winding: boolean
   geometry: string
@@ -13,17 +11,21 @@ export const enum ImageStatus {
 }
 
 /**
- * A version of the entropy source with stabilization to make it suitable for static fingerprinting.
+ * Gets the canvas fingerprint.
  *
- * Canvas image is noised in private mode of Safari 17, so image rendering is skipped in Safari 17.
- * Firefox 120+ randomizes canvas data in private browsing and strict ETP mode,
- * so image rendering is skipped in Firefox 120+.
+ * The anti-fingerprinting modes that add per-render noise to canvas images (e.g. the private mode of Safari 17+,
+ * the private mode and strict ETP of Firefox 120+) are detected at runtime by rendering the images twice on
+ * independent canvases and comparing the results; such browsers keep the `winding` value and get the images marked
+ * as unstable. Browsers without the noise are not skipped and keep the full canvas entropy in the fingerprint.
+ *
+ * Session-consistent noise (e.g. Brave farbling) can't be detected this way; it's handled by the
+ * `getCrossSessionRandomizedSources` exclusion in the agent.
  *
  * @see https://www.browserleaks.com/canvas#how-does-it-work
  * @see https://bugzilla.mozilla.org/show_bug.cgi?id=1816189 Firefox canvas randomization
  */
 export default function getCanvasFingerprint(): CanvasFingerprint {
-  return getUnstableCanvasFingerprint(doesBrowserPerformAntiFingerprinting())
+  return getUnstableCanvasFingerprint()
 }
 
 /**
@@ -76,6 +78,25 @@ function doesSupportWinding(context: CanvasRenderingContext2D) {
 }
 
 function renderImages(canvas: HTMLCanvasElement, context: CanvasRenderingContext2D): [geometry: string, text: string] {
+  const firstResult = renderImagesOnce(canvas, context)
+
+  // The images are rendered again on another canvas to detect per-render noise, which some browsers add
+  // in their anti-fingerprinting modes. See the comment on `getCanvasFingerprint`.
+  const [anotherCanvas, anotherContext] = makeCanvasContext()
+  if (!isSupported(anotherCanvas, anotherContext)) {
+    return firstResult
+  }
+  const secondResult = renderImagesOnce(anotherCanvas, anotherContext)
+  if (firstResult[0] !== secondResult[0] || firstResult[1] !== secondResult[1]) {
+    return [ImageStatus.Unstable, ImageStatus.Unstable]
+  }
+  return firstResult
+}
+
+function renderImagesOnce(
+  canvas: HTMLCanvasElement,
+  context: CanvasRenderingContext2D,
+): [geometry: string, text: string] {
   renderTextImage(canvas, context)
   const textImage1 = canvasToString(canvas)
   const textImage2 = canvasToString(canvas) // It's slightly faster to double-encode the text image
@@ -153,18 +174,4 @@ function renderGeometryImage(canvas: HTMLCanvasElement, context: CanvasRendering
 
 function canvasToString(canvas: HTMLCanvasElement) {
   return canvas.toDataURL()
-}
-
-/**
- * Checks if the current browser is known for applying anti-fingerprinting measures in all or some critical modes:
- * - Safari 17+: noises canvas image in private mode
- * - Firefox 120+: randomizes canvas data in private browsing and strict ETP mode (CanvasRandomization)
- *
- * @see https://bugzilla.mozilla.org/show_bug.cgi?id=1816189 Firefox canvas randomization
- */
-function doesBrowserPerformAntiFingerprinting() {
-  const isSafari17OrAbove = isWebKit() && isWebKit616OrNewer() && isSafariWebKit()
-  const isFirefox120OrAbove = isGecko() && isGecko120OrNewer()
-
-  return isSafari17OrAbove || isFirefox120OrAbove
 }
