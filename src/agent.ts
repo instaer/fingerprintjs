@@ -59,7 +59,8 @@ export const stableComponentKeys: readonly string[] = [
   'touchSupport',
   'colorGamut',
   'monochrome',
-  'hdr',
+  // `hdr` is deliberately excluded: on iOS Safari the `dynamic-range` media query flips
+  // with the system state (low power mode, auto-brightness), see upstream issue #809
   'math',
   'architecture',
   'applePay',
