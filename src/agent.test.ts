@@ -54,9 +54,20 @@ describe('Agent', () => {
     const result = await agent.get()
 
     if (isBrave()) {
-      expect(result.excludedComponents).toEqual(['canvas', 'audio', 'webGlBasics', 'webGlExtensions', 'fonts'])
+      expect(result.excludedComponents).toEqual([
+        'canvas',
+        'audio',
+        'webGlBasics',
+        'webGlExtensions',
+        'fonts',
+        'hardwareConcurrency',
+        'deviceMemory',
+        'plugins',
+      ])
+      expect(result.antiFingerprintingBrowser).toBe('brave')
     } else {
       expect(getCrossSessionRandomizedSources()).toEqual([])
+      expect(result.antiFingerprintingBrowser).toBeUndefined()
     }
 
     // The visitor identifier must not include the excluded components

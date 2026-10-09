@@ -56,7 +56,8 @@ export {
   isDesktopWebKit,
   isSamsungInternet,
 } from './utils/browser'
-export { isBrave, getCrossSessionRandomizedSources } from './utils/antifingerprinting'
+export { isBrave, getCrossSessionRandomizedSources, getAntiFingerprintingBrowser } from './utils/antifingerprinting'
+export type { AntiFingerprintingBrowser } from './utils/antifingerprinting'
 export {
   loadSources,
   Source,

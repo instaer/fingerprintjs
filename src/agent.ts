@@ -3,7 +3,11 @@ import { requestIdleCallbackIfAvailable } from './utils/async'
 import { UnknownComponents } from './utils/entropy_source'
 import { x64hash128 } from './utils/hashing'
 import { errorToObject } from './utils/misc'
-import { getCrossSessionRandomizedSources } from './utils/antifingerprinting'
+import {
+  getAntiFingerprintingBrowser,
+  getCrossSessionRandomizedSources,
+  AntiFingerprintingBrowser,
+} from './utils/antifingerprinting'
 import loadBuiltinSources, { BuiltinComponents } from './sources'
 import getConfidence, { Confidence } from './confidence'
 import getIntegrity, { Integrity } from './integrity'
@@ -103,6 +107,14 @@ export interface GetResult {
    */
   excludedComponents: readonly string[]
   /**
+   * The anti-fingerprinting browser detected in the current environment (e.g. Brave), if any.
+   *
+   * When set, the browser randomizes some entropy sources across sessions, so they are excluded from the
+   * identifier hashes (see `excludedComponents`) and `confidence` is lower. The server side may want to
+   * treat such visitors with an adjusted risk policy.
+   */
+  antiFingerprintingBrowser: AntiFingerprintingBrowser | undefined
+  /**
    * List of components that has formed the visitor identifier.
    *
    * Warning! The type of this property is specific but out of Semantic Versioning, i.e. may have incompatible changes
@@ -180,7 +192,11 @@ function omitComponents(components: UnknownComponents, keys: readonly string[]):
  * Makes a GetResult implementation that calculates the visitor id hashes on demand.
  * Designed for optimisation.
  */
-function makeLazyGetResult(components: BuiltinComponents, excludedComponents: readonly string[]): GetResult {
+function makeLazyGetResult(
+  components: BuiltinComponents,
+  excludedComponents: readonly string[],
+  antiFingerprintingBrowser: AntiFingerprintingBrowser | undefined,
+): GetResult {
   const hashedComponents = omitComponents(components, excludedComponents)
   const stableComponents = omitComponents(pickComponents(components, stableComponentKeys), excludedComponents)
   let visitorIdCache: string | undefined
@@ -213,6 +229,7 @@ function makeLazyGetResult(components: BuiltinComponents, excludedComponents: re
     confidence,
     integrity,
     excludedComponents,
+    antiFingerprintingBrowser,
     components,
     version,
   }
@@ -239,6 +256,7 @@ export function prepareForSources(delayFallback = 50): Promise<void> {
 function makeAgent(
   getComponents: () => Promise<BuiltinComponents>,
   excludedComponents: readonly string[],
+  antiFingerprintingBrowser: AntiFingerprintingBrowser | undefined,
   debug?: boolean,
 ): Agent {
   const creationTime = Date.now()
@@ -247,7 +265,7 @@ function makeAgent(
     async get(options) {
       const startTime = Date.now()
       const components = await getComponents()
-      const result = makeLazyGetResult(components, excludedComponents)
+      const result = makeLazyGetResult(components, excludedComponents, antiFingerprintingBrowser)
 
       if (debug || options?.debug) {
         // console.log is ok here because it's under a debug clause
@@ -263,6 +281,7 @@ stableVisitorId: ${result.stableVisitorId}
 confidence: ${result.confidence.score}
 integrity: ${result.integrity.score} (${result.integrity.lies.length} lies)
 excludedComponents: ${result.excludedComponents.join(', ') || 'none'}
+antiFingerprintingBrowser: ${result.antiFingerprintingBrowser || 'none'}
 components: ${componentsToDebugString(components)}
 \`\`\``)
       }
@@ -280,5 +299,5 @@ export async function load(options: Readonly<LoadOptions> = {}): Promise<Agent> 
   await prepareForSources(delayFallback)
   const getComponents = loadBuiltinSources({ cache: {}, debug })
   const excludedComponents = getCrossSessionRandomizedSources()
-  return makeAgent(getComponents, excludedComponents, debug)
+  return makeAgent(getComponents, excludedComponents, getAntiFingerprintingBrowser(), debug)
 }

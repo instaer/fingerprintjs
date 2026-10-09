@@ -88,6 +88,7 @@ interface GetResult {
     lies: readonly string[]
   }
   excludedComponents: readonly string[]
+  antiFingerprintingBrowser: 'brave' | 'samsung-internet' | undefined
   components: {
     [key: string]:
       { value: any, duration: number } |
@@ -227,6 +228,25 @@ differ between a regular window and a private window otherwise). The raw values 
 excluded sources are still collected and available in
 `components` for server-side analysis. When `excludedComponents` is non-empty, expect a lower
 `confidence` and treat the identifiers accordingly.
+
+### `antiFingerprintingBrowser`
+
+The anti-fingerprinting browser detected in the current environment: `'brave'`,
+`'samsung-internet'` or `undefined`. This is an explicit, stable signal for the reason the
+components are excluded — don't pattern-match `excludedComponents` instead, because the
+exclusion list grows as the browsers extend their randomization.
+
+How to use it: such browsers intentionally randomize entropy across sessions. Their users are
+typically privacy-conscious and, in abuse scenarios, over-represented. A common policy is to
+tighten economic thresholds (bonuses, promo eligibility) earlier for these visitors while
+keeping hard actions (blocking) evidence-based. Example:
+
+```ts
+if (result.antiFingerprintingBrowser) {
+  // Lower tolerance: require less anomaly before stepping up verification
+  riskScore += 1
+}
+```
 
 ### `components`
 

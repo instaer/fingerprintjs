@@ -19,6 +19,29 @@ export function isBrave(): boolean {
 }
 
 /**
+ * The browsers with built-in anti-fingerprinting that the agent knows how to handle.
+ */
+export type AntiFingerprintingBrowser = 'brave' | 'samsung-internet'
+
+/**
+ * Detects the anti-fingerprinting browser in the current environment, if any.
+ *
+ * In such browsers some entropy sources are randomized across sessions (see
+ * `getCrossSessionRandomizedSources`), so the raw `visitorId` of such browsers is less
+ * reliable and the server side may want to treat these visitors with an adjusted risk
+ * policy. The check is synchronous and cheap.
+ */
+export function getAntiFingerprintingBrowser(): AntiFingerprintingBrowser | undefined {
+  if (isBrave()) {
+    return 'brave'
+  }
+  if (isChromium() && isSamsungInternet() && isChromium122OrNewer()) {
+    return 'samsung-internet'
+  }
+  return undefined
+}
+
+/**
  * Detects the browsers that apply cross-session randomization to some entropy sources, making the sources
  * unreliable for a stable visitor identifier.
  *
@@ -28,8 +51,9 @@ export function isBrave(): boolean {
  */
 export function getCrossSessionRandomizedSources(): readonly string[] {
   const excluded = new Set<string>()
+  const browser = getAntiFingerprintingBrowser()
 
-  if (isBrave()) {
+  if (browser === 'brave') {
     // Brave farbles canvas and audio with session+site keyed noise
     excluded.add('canvas')
     excluded.add('audio')
@@ -48,7 +72,7 @@ export function getCrossSessionRandomizedSources(): readonly string[] {
   }
 
   // Samsung Internet 26+ applies audio anti-fingerprinting measures
-  if (isChromium() && isSamsungInternet() && isChromium122OrNewer()) {
+  if (browser === 'samsung-internet') {
     excluded.add('audio')
   }
 

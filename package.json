@@ -1,7 +1,7 @@
 {
   "name": "@instaer/fingerprintjs",
   "description": "Browser fingerprinting library with the highest accuracy and stability",
-  "version": "6.2.0",
+  "version": "6.3.0",
   "keywords": [
     "fraud",
     "fraud detection",
