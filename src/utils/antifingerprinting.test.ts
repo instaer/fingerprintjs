@@ -1,6 +1,6 @@
-import { withMockProperties } from '../tests/utils'
+import { getBrowserMajorVersion, isSamsungInternet, withMockProperties } from '../../tests/utils'
+
 import { isBrave, getCrossSessionRandomizedSources } from './antifingerprinting'
-import { getBrowserMajorVersion, isSamsungInternet } from '../tests/utils'
 
 describe('Antifingerprinting environment detection', () => {
   it('detects Brave via navigator.brave', async () => {
