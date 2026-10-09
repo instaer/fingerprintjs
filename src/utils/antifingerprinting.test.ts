@@ -18,7 +18,16 @@ describe('Antifingerprinting environment detection', () => {
       async () => {
         expect(isBrave()).toBeTrue()
         expect(getCrossSessionRandomizedSources()).toEqual(
-          jasmine.arrayContaining(['canvas', 'audio', 'webGlBasics', 'webGlExtensions', 'fonts']),
+          jasmine.arrayContaining([
+            'canvas',
+            'audio',
+            'webGlBasics',
+            'webGlExtensions',
+            'fonts',
+            'hardwareConcurrency',
+            'deviceMemory',
+            'plugins',
+          ]),
         )
       },
     )

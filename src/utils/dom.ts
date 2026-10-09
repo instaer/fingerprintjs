@@ -37,8 +37,11 @@ export async function withIframe<T>(
         _reject(error)
       }
 
-      iframe.onload = resolve
-      iframe.onerror = reject
+      // `addEventListener` is used instead of the `onload`/`onerror` properties, because some strict CSP
+      // configurations and CSP audit tools treat event handler properties as inline handlers.
+      // See https://github.com/fingerprintjs/fingerprintjs/issues/1172
+      iframe.addEventListener('load', resolve, { once: true })
+      iframe.addEventListener('error', reject, { once: true })
       const { style } = iframe
       style.setProperty('display', 'block', 'important') // Required for browsers to calculate the layout
       style.position = 'absolute'

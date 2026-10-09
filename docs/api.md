@@ -212,7 +212,7 @@ Range: 0.01 to 0.99. Typical values:
 |---|---|
 | `≥ 0.6` | Strong signal: the ID can be used alone for identification |
 | `0.35–0.6` | Weak signal: use the ID as a hint only, corroborate with IP/behavior/account data |
-| `< 0.35` | Almost no signal: heavy anti-fingerprinting (e.g. Brave excludes 5 sources); don't make identity decisions on it |
+| `< 0.35` | Almost no signal: heavy anti-fingerprinting (e.g. Brave excludes 8 sources); don't make identity decisions on it |
 
 A low confidence is **not** an accusation — it means the ID has little information, so the
 collision probability with other visitors is high. The `comment` field explains the score
@@ -221,8 +221,10 @@ breakdown (e.g. `prior 0.5; entropy coverage 100%; integrity 1`) and is safe to 
 ### `excludedComponents`
 
 The sources excluded from both identifier hashes, because the current environment is known
-to randomize them across sessions (e.g. Brave farbling randomizes canvas, audio, WebGL and
-fonts). The raw values of the excluded sources are still collected and available in
+to randomize them across sessions (e.g. Brave farbling randomizes canvas, audio, WebGL,
+fonts, hardwareConcurrency, deviceMemory and plugins — the last three make the identifiers
+differ between a regular window and a private window otherwise). The raw values of the
+excluded sources are still collected and available in
 `components` for server-side analysis. When `excludedComponents` is non-empty, expect a lower
 `confidence` and treat the identifiers accordingly.
 

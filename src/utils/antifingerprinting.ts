@@ -39,6 +39,12 @@ export function getCrossSessionRandomizedSources(): readonly string[] {
     excluded.add('webGlExtensions')
     // Brave randomizes the detection result of a subset of user-installed fonts
     excluded.add('fonts')
+    // Brave also randomizes these navigator properties per session and site, so their values differ
+    // between a regular window and a private window, flipping both identifier hashes.
+    // See https://github.com/fingerprintjs/fingerprintjs/issues/1193
+    excluded.add('hardwareConcurrency')
+    excluded.add('deviceMemory')
+    excluded.add('plugins')
   }
 
   // Samsung Internet 26+ applies audio anti-fingerprinting measures
