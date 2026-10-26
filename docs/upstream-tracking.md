@@ -10,10 +10,10 @@ repository [`fingerprintjs/fingerprintjs`](https://github.com/fingerprintjs/fing
 
 <!--
 upstream-cursor
-last-checked: 2026-10-19
-last-commit: d43c48aeff
-last-commit-date: 2026-10-14
-max-issue-number: 1223
+last-checked: 2026-10-26
+last-commit: 7a738d0e99
+last-commit-date: 2026-10-21
+max-issue-number: 1225
 -->
 
 ## Pending items
