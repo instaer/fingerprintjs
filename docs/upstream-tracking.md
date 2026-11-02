@@ -10,13 +10,14 @@ repository [`fingerprintjs/fingerprintjs`](https://github.com/fingerprintjs/fing
 
 <!--
 upstream-cursor
-last-checked: 2026-10-26
+last-checked: 2026-11-02
 last-commit: 7a738d0e99
 last-commit-date: 2026-10-21
-max-issue-number: 1225
+max-issue-number: 1228
 -->
 
 ## Pending items
 
 | Type | ID | Date | Summary | Status |
 |---|---|---|---|---|
+| issue | 1226 | 2026-10-27 | Firefox private windows and Strict ETP hide Office/language-pack fonts, so `fonts` changes the visitorId between regular and private windows of the same browser; port the fix once the announced upstream PR lands | 未处理 |
