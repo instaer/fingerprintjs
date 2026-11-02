@@ -2,6 +2,40 @@ import { MaybePromise, wait } from './async'
 import { parseSimpleCssSelector } from './data'
 
 /**
+ * The minimal shape of the Trusted Types API used to create a policy for the iframe's `srcdoc` attribute.
+ * The DOM typings are avoided for compatibility with older TypeScript versions.
+ */
+type TrustedTypesAPI = {
+  createPolicy(
+    policyName: string,
+    policyOptions: { createHTML: (input: string) => string },
+  ): { createHTML: (input: string) => string }
+}
+
+let srcdocTrustedTypesPolicy: ReturnType<TrustedTypesAPI['createPolicy']> | undefined
+
+/**
+ * Returns a Trusted Types policy that allows to assign an HTML to the iframe's `srcdoc` attribute on pages
+ * that enforce Trusted Types (Content-Security-Policy: `require-trusted-types-for 'script'`).
+ * Returns undefined when the policy can't be created, e.g. when the `trusted-types` Content-Security-Policy
+ * directive limits the allowed policy names. The policy is cached to prevent duplicate policy name errors.
+ * See https://github.com/fingerprintjs/fingerprintjs/issues/1227
+ */
+function getSrcdocTrustedTypesPolicy(): ReturnType<TrustedTypesAPI['createPolicy']> | undefined {
+  if (!srcdocTrustedTypesPolicy) {
+    try {
+      const trustedTypes = (window as unknown as { trustedTypes?: TrustedTypesAPI }).trustedTypes
+      srcdocTrustedTypesPolicy = trustedTypes?.createPolicy('fingerprintjs', {
+        createHTML: (html: string) => html,
+      })
+    } catch (error) {
+      // Ignored: the caller falls back to `about:blank`
+    }
+  }
+  return srcdocTrustedTypesPolicy
+}
+
+/**
  * Creates and keeps an invisible iframe while the given function runs.
  * The given function is called when the iframe is loaded and has a body.
  * The iframe allows to measure DOM sizes inside itself.
@@ -49,7 +83,23 @@ export async function withIframe<T>(
       style.left = '0'
       style.visibility = 'hidden'
       if (initialHtml && 'srcdoc' in iframe) {
-        iframe.srcdoc = initialHtml
+        try {
+          iframe.srcdoc = initialHtml
+        } catch (error) {
+          // The assignment above fails on pages that enforce Trusted Types
+          // (Content-Security-Policy: `require-trusted-types-for 'script'`), because it requires
+          // a TrustedHTML value. A trusted HTML created by a dedicated policy is assigned then.
+          // When even the policy can't be created (e.g. the `trusted-types` CSP directive limits
+          // the allowed policy names), the iframe falls back to `about:blank`, so the caller still
+          // gets a result — a bit less natural on Android Firefox, but without an error.
+          // See https://github.com/fingerprintjs/fingerprintjs/issues/1227
+          const policy = getSrcdocTrustedTypesPolicy()
+          if (policy) {
+            iframe.srcdoc = policy.createHTML(initialHtml)
+          } else {
+            iframe.src = 'about:blank'
+          }
+        }
       } else {
         iframe.src = 'about:blank'
       }
