@@ -38,5 +38,22 @@ describe('DOM utilities', () => {
         jasmine.clock().uninstall()
       }
     })
+    it('throws if the iframe is removed from the document before it is loaded', async () => {
+      // Simulates a page that replaces the document body (e.g. Turbo Drive) while an iframe source is loading
+      const observer = new MutationObserver(() => {
+        for (const iframe of Array.from(document.querySelectorAll('iframe'))) {
+          iframe.remove()
+        }
+      })
+      observer.observe(document.body, { childList: true })
+
+      try {
+        // The error may come either from the loading state polling or from the body waiting loop,
+        // depending on which moment the removal lands. What matters: the promise settles instead of hanging.
+        await expectAsync(withIframe(() => ({}), '<!doctype html><html><body></body></html>')).toBeRejected()
+      } finally {
+        observer.disconnect()
+      }
+    })
   })
 })

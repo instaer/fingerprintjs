@@ -116,6 +116,15 @@ export async function withIframe<T>(
           return
         }
 
+        // The page can replace the document body while the iframe is loading, removing the iframe from the
+        // document. `contentWindow` stays null for good afterwards, so the polling must stop and the error
+        // must be thrown, otherwise the caller never settles.
+        // See https://github.com/fingerprintjs/fingerprintjs/issues/1235
+        if (!iframe.isConnected) {
+          reject(new Error('The iframe has been removed from the document before it is loaded'))
+          return
+        }
+
         // Make sure iframe.contentWindow and iframe.contentWindow.document are both loaded
         // The contentWindow.document can miss in JSDOM (https://github.com/jsdom/jsdom).
         if (iframe.contentWindow?.document?.readyState === 'complete') {
@@ -127,7 +136,14 @@ export async function withIframe<T>(
       checkReadyState()
     })
 
+    // The iframe can be removed from the document after it is loaded (e.g. the page replaces the document
+    // body), making `contentWindow` stay null for good. The loop must stop and the error must be thrown,
+    // otherwise the caller never settles.
+    // See https://github.com/fingerprintjs/fingerprintjs/issues/1235
     while (!iframe.contentWindow?.document?.body) {
+      if (!iframe.isConnected) {
+        throw new Error('The iframe has been removed from the document before its body is ready')
+      }
       await wait(domPollInterval)
     }
 
