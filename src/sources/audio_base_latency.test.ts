@@ -41,6 +41,10 @@ describe('Sources', () => {
         get baseLatency() {
           return Infinity
         }
+
+        close(): Promise<void> {
+          return Promise.resolve()
+        }
       }
 
       window.AudioContext = MockAudioContext as typeof window.AudioContext

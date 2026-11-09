@@ -1,3 +1,4 @@
+import { suppressUnhandledRejectionWarning } from '../utils/async'
 import { isAndroid, isWebKit } from '../utils/browser'
 
 export const enum SpecialFingerprint {
@@ -21,15 +22,24 @@ export default function getAudioContextBaseLatency(): number {
     return SpecialFingerprint.NotSupported
   }
 
-  const latency = new AudioContext().baseLatency
+  const context = new AudioContext()
+  try {
+    const latency = context.baseLatency
 
-  if (latency === null || latency === undefined) {
-    return SpecialFingerprint.NotSupported
+    if (latency === null || latency === undefined) {
+      return SpecialFingerprint.NotSupported
+    }
+
+    if (!isFinite(latency)) {
+      return SpecialFingerprint.NotFinite
+    }
+
+    return latency
+  } finally {
+    // An open AudioContext joins the OS audio session. On iOS with CarPlay connected, an open context
+    // pauses the device's own audio sources (e.g. the vehicle's FM radio) while the page stays open.
+    // The context isn't needed anymore, so it is closed right away.
+    // See https://github.com/fingerprintjs/fingerprintjs/issues/1234
+    suppressUnhandledRejectionWarning(context.close())
   }
-
-  if (!isFinite(latency)) {
-    return SpecialFingerprint.NotFinite
-  }
-
-  return latency
 }
